@@ -16,7 +16,7 @@ from main.tools.age_range import AgeRange
 __author__ = 'Iván de Paz Centeno'
 
 
-LMDB_BATCH_SIZE = 256   # Batch size for writing into LMDB. This is the amount of images
+LMDB_BATCH_SIZE = 40    # Batch size for writing into LMDB. This is the amount of image
                         # before the batch is commited into the file.
 
 
@@ -39,14 +39,14 @@ def mkdir_p(dir):
 
 class GenericImageAgeDataset(Dataset):
     """
-    Dataset of images for ages.
+    Dataset of image for ages.
     It allows to read an existing dataset or to create a new one under the specified root folder.
     """
 
     def __init__(self, root_folder, metadata_file="labels.json",
-                 description="Generic Dataset JSON-Based of images with Age labels"):
+                 description="Generic Dataset JSON-Based of image with Age labels", dataset_normalizers=None):
         """
-        Initialization of a dataset of images with ages labeled.
+        Initialization of a dataset of image with ages labeled.
         Metadata is built from a JSON file.
         :param root_folder:
         :param metadata_file: JSON file URI, which is composed by the following format: {'IMAGE_FILE_NAME': AGE_RANGE_STRING}
@@ -56,6 +56,7 @@ class GenericImageAgeDataset(Dataset):
 
                               Note: the working directory when loading the metadata_file is root_folder.
         :param description: description of the dataset for report purposes.
+        :param dataset_normalizers: list of normalizers to normalize when storing image inside this dataset.
         :return:
         """
         # This dataset class is also capable of creating datasets.
@@ -68,6 +69,11 @@ class GenericImageAgeDataset(Dataset):
         Dataset.__init__(self, root_folder, metadata_file, description)
 
         self.autoencoded_uris = {}
+
+        if not dataset_normalizers:
+            dataset_normalizers = []
+
+        self.normalizers = dataset_normalizers
 
     def _is_absolute_uri(self, uri):
         """
@@ -105,12 +111,14 @@ class GenericImageAgeDataset(Dataset):
 
         return image
 
-    def put_image(self, image, autoencode_uri=True):
+    def put_image(self, image, autoencode_uri=True, apply_normalizers=True):
         """
         Puts an image in the dataset.
         It must be filled with content, relative uri and metadata in order to be created the dataset.
         :param image: Image to save in the dataset.
         :param autoencode_uri: Boolean flag to set if the URI should be automatically filled by the dataset or not.
+        :param dataset_normalizer: normalizer to apply to the image
+        :param apply_normalizers: boolean flag to apply normalizers when the image is put into the dataset manually.
         :return:
         """
 
@@ -133,7 +141,13 @@ class GenericImageAgeDataset(Dataset):
             if not image.is_loaded():
                 image.load_from_uri()
 
-            cv2.imwrite(uri, image.get_blob())
+            image_blob = image.get_blob()
+
+            if apply_normalizers:
+                for normalizer in self.normalizers:
+                    image_blob = normalizer.apply(image_blob)
+
+            cv2.imwrite(uri, image_blob)
             print("Saved into {}".format(uri))
         except Exception as ex:
             print("Could not write image in \"{}\"".format(image.get_uri()))
@@ -143,7 +157,7 @@ class GenericImageAgeDataset(Dataset):
     def _encode_uri_for_image(self, image):
         """
         Finds a new URI for the specified image inside the dataset.
-        It is going to create an uri based on the age-range and the number of images that matches that age range.
+        It is going to create an uri based on the age-range and the number of image that matches that age range.
         :param image: image to find an URI for.
         :return: URI for the image.
         """
@@ -213,7 +227,7 @@ class GenericImageAgeDataset(Dataset):
 
     def get_dataset_size(self):
         """
-        Calculates the dataset size based on the images' sizes.
+        Calculates the dataset size based on the image' sizes.
         :return: size in bytes of the whole dataset (excluding the metadata).
         """
         keys = self.get_keys()
@@ -226,7 +240,7 @@ class GenericImageAgeDataset(Dataset):
 
         return dataset_size
 
-    def export_to_lmdb(self, lmdb_foldername, ages_as_means=True, map_size=-1):
+    def export_to_lmdb(self, lmdb_foldername, ages_as_means=True, map_size=-1, splitters=None, apply_normalizers=False):
         """
         Exports the current dataset to LMDB format.
         If the LMDB already exists, it will append to its content.
@@ -235,53 +249,98 @@ class GenericImageAgeDataset(Dataset):
         :param map_size: size of map of the LMDB database. If set to -1, it will attempt to calculate a map_size that
         fits this dataset. Remember however, that it won't allow to expand the LMDB database with new data and you'll
         need to create a new one in case you want to.
+        :param splitters: a set of splitters to split the dataset into multiple lmdbs. The lmdb divided by each splitter
+        will be stored with the splitter's name prepended to the lmdb name. This is useful if you want to extract a
+        chunk of the dataset as a test or validation lmdbs.
+        :param apply_normalizers: boolean flag to apply normalizers when the image is put into the dataset manually.
         """
         iteration = 0
+        txn_index = 0
+
+        if splitters is None:
+            splitters = []
 
         keys = self.get_keys()
         count = len(keys)
 
         if map_size == -1:
-            map_size = self.get_dataset_size() + count * 30000
+            #map_size = self.get_dataset_size() + count * 30000
+            map_size = 1e12
 
         print("Map size is {} MBytes".format(round(map_size/1000/1000, 2)))
-        env = lmdb.Environment(lmdb_foldername, map_size=map_size)
-        txn = env.begin(write=True, buffers=True)
+
+        if splitters:
+            environments = [lmdb.Environment(lmdb_foldername + "_" + splitter.get_name(), map_size=map_size) for splitter in splitters]
+        else:
+            environments = [lmdb.Environment(lmdb_foldername, map_size=map_size)]
+
+        txns = [env.begin(write=True, buffers=True) for env in environments]
+        txn = env = None
+
+        put_txns = {}
+
+        for txn in txns:
+            put_txns[txn] = 0
 
         for key in keys:
             iteration += 1
 
+            for split_id in range(len(splitters)):
+
+                splitter = splitters[split_id]
+
+                if splitter.decide(iteration):
+                    txn = txns[split_id]
+                    env = environments[split_id]
+                    txn_index = split_id
+                    break
+
+            if not txn or not env:
+                txn = txns[0]
+                env = environments[0]
+                txn_index = 0
+
             image = self.get_image(key)
             image.load_from_uri()
             age_range = image.get_metadata()[0]
+
             if ages_as_means:
                 label = age_range.get_mean()
             else:
                 label = age_range.get_range()[0]
 
+            image_blob = image.get_blob()
+            if apply_normalizers:
+                for normalizer in self.normalizers:
+                    image_blob = normalizer.apply(image_blob)
+
             #HxWxC to CxHxW in caffe
-            image_blob = np.transpose(image.get_blob(), (2,0,1))
+            image_blob = np.transpose(image_blob, (2,0,1))
 
             # Datum is the element map in LMDB. We associate image with label here.
             datum = array_to_datum(image_blob, label)
 
-            # Now we encode the image id in ascii format inside the lmdb container.
+            # Now we encode the image id in ascii format inside the lmdb container that corresponds to this input.
             txn.put(image.get_id().encode("ascii"), datum.SerializeToString())
+            put_txns[txn] += 1
 
             # write batch
-            if iteration % LMDB_BATCH_SIZE == 0:
+            if put_txns[txn] % LMDB_BATCH_SIZE == 0:
                 txn.commit()
+                old_txn_count = put_txns[txn]
+                del put_txns[txn]
                 txn = env.begin(write=True)
-                print("[{}%] Stored batch of {} images in LMDB".format(round(iteration/count * 100, 2),
-                                                                       LMDB_BATCH_SIZE))
+                txns[txn_index] = txn
+                put_txns[txn] = old_txn_count
+                print("[{}%] Stored batch of {} image in LMDB".format(round(iteration/count * 100, 2),
+                                                                      LMDB_BATCH_SIZE))
 
-        # There could be a last batch without being commited.
-        if iteration % LMDB_BATCH_SIZE != 0:
-            txn.commit()
-            print("[{}%] Stored batch of {} images in LMDB".format(round(iteration/count * 100, 2),
-                                                                       iteration % LMDB_BATCH_SIZE))
+        # There could be a last batch on each txn without being commited.
+        [txn.commit() or print("[{}%] Stored batch of {} image in LMDB".format(round(iteration/count * 100, 2),
+                               count % LMDB_BATCH_SIZE))
+         for txn, count in put_txns.items() if count % LMDB_BATCH_SIZE != 0]
 
-        env.close()
+        [env.close() for env in environments]
 
     def import_from_lmdb(self, lmdb_foldername):
         """

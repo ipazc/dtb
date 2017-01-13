@@ -8,6 +8,11 @@
             <set />
           </value>
         </entry>
+        <entry key="$PROJECT_DIR$/convert_lmdb.py">
+          <value>
+            <set />
+          </value>
+        </entry>
         <entry key="$PROJECT_DIR$/main/dataset/dataset.py">
           <value>
             <set />
@@ -53,6 +58,21 @@
             <set />
           </value>
         </entry>
+        <entry key="$PROJECT_DIR$/main/normalizer/image/histogram_normalizer.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/main/normalizer/image/size_normalizer.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/main/normalizer/normalizer.py">
+          <value>
+            <set />
+          </value>
+        </entry>
         <entry key="$PROJECT_DIR$/main/resource/image.py">
           <value>
             <set />
@@ -63,7 +83,22 @@
             <set />
           </value>
         </entry>
+        <entry key="$PROJECT_DIR$/main/save_example.py">
+          <value>
+            <set />
+          </value>
+        </entry>
         <entry key="$PROJECT_DIR$/main/tools/age_range.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/main/tools/splitter.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/test.py">
           <value>
             <set />
           </value>
