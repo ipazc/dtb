@@ -268,6 +268,7 @@ class GenericImageAgeDataset(Dataset):
 
         keys = self.get_keys(shuffle=True)
         count = len(keys)
+        datum_id_format = "{}:0>{}{}_dbuild_{}".format("{", len(str(count)), "}", "{}")
 
         if map_size == -1:
             #map_size = self.get_dataset_size() + count * 30000
@@ -327,7 +328,8 @@ class GenericImageAgeDataset(Dataset):
             datum = array_to_datum(image_blob, label)
 
             # Now we encode the image id in ascii format inside the lmdb container that corresponds to this input.
-            txn.put(image.get_id().encode("ascii"), datum.SerializeToString())
+
+            txn.put(datum_id_format.format(iteration, image.get_id().encode("ascii")), datum.SerializeToString())
             put_txns[txn] += 1
 
             # write batch
@@ -361,7 +363,7 @@ class GenericImageAgeDataset(Dataset):
         datum = caffe_pb2.Datum()
 
         for key, value in lmdb_cursor:
-            key = str(key, encoding="UTF-8")
+            key = str(key, encoding="UTF-8").split("_dbuild_", 1)[-1]
 
             datum.ParseFromString(value)
 

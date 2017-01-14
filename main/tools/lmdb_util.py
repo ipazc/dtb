@@ -50,6 +50,9 @@ class LMDBUtil(object):
                 consecutive_label_name = label
                 consecutive_label_count = 1
 
+        if consecutive_label_name not in max_consecutive_label:
+            max_consecutive_label[consecutive_label_name] = consecutive_label_count
+            
         lmdb_env.close()
 
         return max_consecutive_labels
