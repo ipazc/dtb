@@ -3,6 +3,7 @@
 import json
 import os
 import errno
+import random
 import caffe
 from caffe.io import array_to_datum
 from caffe.proto import caffe_pb2
@@ -83,13 +84,18 @@ class GenericImageAgeDataset(Dataset):
         """
         return uri.startswith("/")
 
-    def get_keys(self):
+    def get_keys(self, shuffle=False):
         """
         Returns the keys for the find_route method as a list.
+        :param shuffle: shuffles the list before returning it.
         :return: list of keys for the find_route
         """
+        result = list(self.metadata_content.keys())
 
-        return list(self.metadata_content.keys())
+        if shuffle:
+            random.shuffle(result)
+            
+        return result
 
     def get_key_metadata(self, key):
         """
@@ -260,7 +266,7 @@ class GenericImageAgeDataset(Dataset):
         if splitters is None:
             splitters = []
 
-        keys = self.get_keys()
+        keys = self.get_keys(shuffle=True)
         count = len(keys)
 
         if map_size == -1:
@@ -336,7 +342,7 @@ class GenericImageAgeDataset(Dataset):
                                                                       LMDB_BATCH_SIZE))
 
         # There could be a last batch on each txn without being commited.
-        [txn.commit() or print("[{}%] Stored batch of {} image in LMDB".format(round(iteration/count * 100, 2),
+        [txn.commit() or print("[{}%] Stored batch of {} image in LMDB".format(round(iteration/len(keys) * 100, 2),
                                count % LMDB_BATCH_SIZE))
          for txn, count in put_txns.items() if count % LMDB_BATCH_SIZE != 0]
 

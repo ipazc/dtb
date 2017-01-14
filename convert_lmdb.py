@@ -17,7 +17,7 @@ dataset = GenericImageAgeDataset(dataset_uri, dataset_normalizers=[histogram_nor
 dataset.load_dataset()
 
 train_splitter = Splitter(split_percentage=1, name="train")
-test_splitter = Splitter(split_percentage=0.2, name="test")
+validation_splitter = Splitter(split_percentage=0.17, name="validation")
 
 dataset.export_to_lmdb("/home/ivan/model_test/cat-dogs_lmdb", apply_normalizers=True,
-                       splitters=[test_splitter, train_splitter])
+                       splitters=[validation_splitter, train_splitter])
