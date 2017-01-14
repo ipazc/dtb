@@ -17,8 +17,8 @@ from main.tools.age_range import AgeRange
 __author__ = 'Iván de Paz Centeno'
 
 
-LMDB_BATCH_SIZE = 40    # Batch size for writing into LMDB. This is the amount of image
-                        # before the batch is commited into the file.
+LMDB_BATCH_SIZE = 256    # Batch size for writing into LMDB. This is the amount of image
+                         # before the batch is commited into the file.
 
 
 def mkdir_p(dir):
