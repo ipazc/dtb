@@ -329,7 +329,7 @@ class GenericImageAgeDataset(Dataset):
 
             # Now we encode the image id in ascii format inside the lmdb container that corresponds to this input.
 
-            txn.put(datum_id_format.format(iteration, image.get_id().encode("ascii")), datum.SerializeToString())
+            txn.put(datum_id_format.format(iteration, image.get_id()).encode("ascii"), datum.SerializeToString())
             put_txns[txn] += 1
 
             # write batch

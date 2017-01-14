@@ -28,8 +28,6 @@ class LMDBUtil(object):
         consecutive_label_count = 0
 
         for key, value in lmdb_cursor:
-            key = str(key, encoding="UTF-8")
-
             datum.ParseFromString(value)
 
             label = datum.label
@@ -52,7 +50,7 @@ class LMDBUtil(object):
 
         if consecutive_label_name not in max_consecutive_label:
             max_consecutive_label[consecutive_label_name] = consecutive_label_count
-            
+
         lmdb_env.close()
 
         return max_consecutive_labels
