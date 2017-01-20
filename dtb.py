@@ -8,6 +8,7 @@ Creates or converts between specific standards of datasets (like LMDB) and raw d
 
 Usage:
   dtb.py init <dataset_type> [--size=<WxH>] [--equalize-histogram] [--override-existing] [--description=<dataset_description>] [--metadata-file=<metadata_filename>]
+  dtb.py list-dataset-types
   dtb.py add <resource-uri>...
   dtb.py size
   dtb.py lmdb export <lmdb_destination> <splits>... [--size=<WxH>] [--equalize-histogram] [--shuffle]
@@ -17,13 +18,11 @@ Usage:
   dtb.py zip export <zip_destination>
   dtb.py zip import <zip_source>
 
-  dtb.py (-l | --list-available-dataset-types)
   dtb.py (-h | --help)
   dtb.py --version
 
 Options:
   -h --help     Show this screen.
-  -l --list-available-dataset-types     Lists the available dataset types.
   --version     Show version.
   --size=<WxH>  Sets the width and height in the size of the dataset.
   --description=<dataset_description>   Specifies a dataset description.
@@ -98,6 +97,13 @@ class DTB(object):
         """
         Parses the arguments of the docopt.
         """
+        if arguments['list-dataset-types']:
+            self.do_list_dataset_types()
+        elif arguments['lmdb'] and arguments['check-shuffle-status']:
+            self.do_lmdb_check_shuffle()
+        elif arguments['lmdb'] and arguments['size']:
+            self.do_lmdb_get_size()
+
 
         if arguments['init']:
             self.do_initialize()
@@ -116,12 +122,6 @@ class DTB(object):
         elif arguments['lmdb'] and arguments['import']:
             pass#self.do_lmdb_import()
 
-        elif arguments['lmdb'] and arguments['check-shuffle-status']:
-            self.do_lmdb_check_shuffle()
-
-        elif arguments['lmdb'] and arguments['size']:
-            self.do_lmdb_get_size()
-
         elif arguments['zip'] and arguments['export']:
             pass#self.do_zip_export()
 
@@ -136,6 +136,7 @@ class DTB(object):
         available_arguments = ['--size', '--equalize-histogram', '--description', '--metadata-file']
 
         arguments_to_store = [argument for argument in available_arguments if self.arguments[argument]]
+        self.options["type"] = self.arguments["<dataset_type>"]
 
         for argument in arguments_to_store:
             self.options[argument.replace("--","")] = self.arguments[argument]
@@ -147,6 +148,8 @@ class DTB(object):
                 previous_options, HIDDEN_CONFIG_FILE))
             exit(-1)
 
+        exit(0)
+
     def _load_options(self):
         """
         Loads the options file and, if it exists, initializes the dataset with that options.
@@ -155,6 +158,9 @@ class DTB(object):
 
         if os.path.exists(HIDDEN_CONFIG_FILE):
             self.options = get_config()
+        else:
+            print("There seems to not be any database initialized under the current folder.")
+            exit(-1)
 
         if self.options['type'] not in dataset_proto:
             print("Invalid dataset type.")
@@ -164,13 +170,13 @@ class DTB(object):
             "root_folder": os.getcwd(),
         }
 
-        arguments_to_fulfill = [argument for argument in inspect.getargspec(dataset_proto[self.options['type']])
+        arguments_to_fulfill = [argument for argument in inspect.getargspec(dataset_proto[self.options['type']]).args
                                 if argument not in parameters and argument in self.options]
 
         for argument in arguments_to_fulfill:
             parameters[argument] = self.options[argument]
 
-        # If are there normalizers defined in the options, then append them to the paremeters.
+        # If are there normalizers defined in the options, then append them to the parameters.
         normalizers_to_fulfill = [normalizer for normalizer in normalizer_proto if normalizer in self.options]
 
         normalizers = []
@@ -189,6 +195,7 @@ class DTB(object):
         """
         self.dataset.load_dataset()
         print(len(self.dataset.get_keys()))
+        exit(0)
 
     def do_add(self):
         """
@@ -196,11 +203,21 @@ class DTB(object):
         :return:
         """
         self.dataset.load_dataset()
+        metadata_proto = self.dataset.get_metadata_proto()
 
-        resources = [Resource(uri=uri) for uri in self.arguments['<resource-uri>']]
+        resources = []
+
+        for full_uri in self.arguments['<resource-uri>']:
+            uri, label = full_uri.split(":")
+            resources.append(Resource(uri=uri, metadata=[metadata_proto.from_string(label)]))
 
         for resource in resources:
-            self.dataset.put_image(resource, autoencode_uri=True, apply_normalizers=True)
+            self.dataset.put_resource(resource, autoencode_uri=True, apply_normalizers=True)
+
+        # Now we save the dataset
+        self.dataset.save_dataset()
+
+        exit(0)
 
     def do_lmdb_export(self):
         """
@@ -241,6 +258,8 @@ class DTB(object):
         self.dataset.export_to_lmdb(lmdb_foldername=dest_dir, splitters=splits,
                                     apply_normalizers=(len(normalizers) > 0))
 
+        exit(0)
+
     def do_lmdb_get_size(self):
         """
         Prints the number of elements in a LMDB file.
@@ -254,6 +273,7 @@ class DTB(object):
         lmdb_util = LMDBUtil(lmdb_source)
 
         print(lmdb_util.get_size())
+        exit(0)
 
     def do_lmdb_check_shuffle(self):
         """
@@ -282,13 +302,22 @@ class DTB(object):
         # Shuffle logic check: should be lesser than LMDB_BATCH_SIZE
         for class_name, count in max_consecutive_counts.items():
             if count < LMDB_BATCH_SIZE * 0.2:
-                print("It is quite well shuffled and it should work under training.")
+                print("[Class {}] It is quite well shuffled and it should work under training.".format(class_name))
             elif count < LMDB_BATCH_SIZE * 0.5:
-                print("It is partially shuffled, it could work but consider shuffling again.")
+                print("[Class {}] It is partially shuffled, it could work but consider shuffling again.".format(class_name))
             else:
-                print("Shuffle is not correct as it is greater than half of the "
-                      "batch size ({}).".format(LMDB_BATCH_SIZE))
+                print("[Class {}] Shuffle is not correct as it is greater than half of the "
+                      "batch size ({}).".format(LMDB_BATCH_SIZE, class_name))
 
+        exit(0)
+
+    def do_list_dataset_types(self):
+        """
+        Prints the dataset types available for use in init.
+        :return:
+        """
+        [ print(dataset_type) for dataset_type in dataset_proto ]
+        exit(0)
 
 if __name__ == '__main__':
     arguments = docopt(__doc__, version='Dataset Builder 0.0.1 Jan 2017')

@@ -142,9 +142,39 @@ class GenericImageAgeDataset(Dataset):
             cv2.imwrite(uri, image_blob)
             print("Saved into {}".format(uri))
         except Exception as ex:
-            print("Could not write image in \"{}\"".format(image.get_uri()))
+            print("Could not write image \"{}\" into dataset.".format(image.get_uri()))
             del self.metadata_content[key]
             raise
+
+    def put_resource(self, resource, autoencode_uri=True, apply_normalizers=True):
+        """
+        Puts the resource into an image and then pipes it to the put_image.
+        :param resource:
+        :param autoencode_uri:
+        :param apply_normalizers:
+        :return:
+        """
+        image = Image(uri=resource.get_uri(), metadata=resource.get_metadata())
+        self.put_image(image, autoencode_uri=autoencode_uri, apply_normalizers=apply_normalizers)
+
+    def _update_encoded_uris_cache(self):
+        """
+        Updates the encoded uris cache based on the current metadata.
+        :return:
+        """
+        self.autoencoded_uris = {}
+
+        keys = self.get_keys()
+
+        for key in keys:
+
+            metadata = self.get_key_metadata(key)
+            age_range_hash = metadata.hash()
+
+            if age_range_hash not in self.autoencoded_uris:
+                self.autoencoded_uris[age_range_hash] = 1
+            else:
+                self.autoencoded_uris[age_range_hash] += 1
 
     def _encode_uri_for_image(self, image):
         """
@@ -177,7 +207,13 @@ class GenericImageAgeDataset(Dataset):
         # Let's load the routes list. This way we can reference them easily by the metadata_file content.
         self._load_routes()
         self._load_metadata_file()
+
+        if "".join(self.metadata_content) == "":
+            self.metadata_content = "{}"
+
         self.metadata_content = self._preprocess_metadata(self.metadata_content)
+        print(self.metadata_content)
+        self._update_encoded_uris_cache()
 
     @staticmethod
     def _preprocess_metadata(raw_metadata):
@@ -369,5 +405,12 @@ class GenericImageAgeDataset(Dataset):
         Exports the current dataset into ZIP format.
         :param filename: filename of the zip to store contents into.
         """
+
+    def get_metadata_proto(self):
+        """
+        Retrieves the metadata proto used by this class.
+        :return:
+        """
+        return AgeRange
 
 dataset_proto[GenericImageAgeDataset.__name__] = GenericImageAgeDataset

@@ -16,7 +16,7 @@ class Splitter(object):
         Initialization of the splitter.
         :param split_percentage: percentage of inputs that are going to be splitted.
         """
-        self.split_percentage = split_percentage
+        self.split_percentage = float(split_percentage)
         random.seed()
         self.splitted_list = []
         self.name = name

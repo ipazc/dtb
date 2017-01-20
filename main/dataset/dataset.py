@@ -72,7 +72,7 @@ class Dataset(object):
             return
 
         with open(self.metadata_file) as file:
-            self.metadata_content = filter(None, file.readlines())
+            self.metadata_content = file.readlines()
 
     def get_routes(self):
         """

@@ -16,8 +16,8 @@ class SizeNormalizer(Normalizer):
         :param width: width in pixels to resize the blobs.
         :param height: height in pixels to resize the blobs.
         """
-        self.width = width
-        self.height = height
+        self.width = int(width)
+        self.height = int(height)
 
     def apply(self, blob):
         #Image Resizing

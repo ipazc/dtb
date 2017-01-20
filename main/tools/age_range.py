@@ -27,7 +27,7 @@ class AgeRange(object):
         Instantiates an age_range from a string text.
 
 
-        :param text:  text representing the range. Format: "(x,y)"
+        :param text:  text representing the range. Format: "(x,y)" or "[x,y]"
                       Spaces will be stripped. Example: "(10, 50)"
 
         :return: instance of the age range with the specified range filled.
@@ -38,7 +38,7 @@ class AgeRange(object):
         if not text:
             text = ""
 
-        text_components = text.replace("(", "").replace(")", "").split(",")
+        text_components = text.replace("(", "").replace(")", "").replace("[", "").replace("]", "").split(",")
 
         if len(text_components) != 2:
             min_value = INVALID_RANGE
