@@ -5,6 +5,29 @@ __author__ = 'Iván de Paz Centeno'
 
 import fnmatch
 import os
+import errno
+
+
+LMDB_BATCH_SIZE = 256    # Batch size for writing into LMDB. This is the amount of image
+                         # before the batch is commited into the file.
+
+
+def mkdir_p(dir):
+    """
+    Creates a dir recursively (like mkdir -p).
+    If it already exists does nothing.
+    :param dir: dir to create.
+    :return:
+    """
+
+    try:
+        os.makedirs(dir)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(dir):
+            pass
+        else:
+            print("Error when creating dir for dataset: {}".format(exc))
+            raise
 
 
 class Dataset(object):
@@ -171,3 +194,6 @@ class ExtensionSet(object):
         """
         return list(filter(None, [",".join(fnmatch.filter(filenames,'*.{}'.format(extension)))
                                   for extension in [self.extensions]]))
+
+
+dataset_proto = {}

@@ -15,6 +15,38 @@ class LMDBUtil(object):
     def __init__(self, lmdb_folder):
         self.lmdb_folder = lmdb_folder
 
+    def get_size(self):
+        """
+        :return: the amount of elements inside the LMDB file.
+        """
+        classes = self.get_classes()
+        return sum([value for key, value in classes.items()])
+
+    def get_classes(self):
+        """
+        :return: the different classes available inside the LMDB file.
+        """
+        lmdb_env = lmdb.open(self.lmdb_folder)
+        lmdb_txn = lmdb_env.begin()
+        lmdb_cursor = lmdb_txn.cursor()
+
+        classes = {}
+
+        datum = caffe_pb2.Datum()
+        for key, value in lmdb_cursor:
+            datum.ParseFromString(value)
+
+            label = datum.label
+
+            if label not in classes:
+                classes[label] = 0
+
+            classes[label] += 1
+
+        lmdb_env.close()
+
+        return classes
+
     def get_max_consecutive_counts(self):
         lmdb_env = lmdb.open(self.lmdb_folder)
         lmdb_txn = lmdb_env.begin()

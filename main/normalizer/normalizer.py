@@ -16,3 +16,6 @@ class Normalizer(object):
         :return: blob normalized
         """
         pass
+
+
+normalizer_proto = {}

@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-import errno
 import random
 import caffe
 from caffe.io import array_to_datum
@@ -10,33 +9,12 @@ from caffe.proto import caffe_pb2
 import cv2
 import lmdb
 import numpy as np
-from main.dataset.dataset import Dataset
+from main.dataset.dataset import Dataset, mkdir_p, LMDB_BATCH_SIZE, dataset_proto
 from main.resource.image import Image
 from main.tools.age_range import AgeRange
 
 __author__ = 'Iván de Paz Centeno'
 
-
-LMDB_BATCH_SIZE = 256    # Batch size for writing into LMDB. This is the amount of image
-                         # before the batch is commited into the file.
-
-
-def mkdir_p(dir):
-    """
-    Creates a dir recursively (like mkdir -p).
-    If it already exists does nothing.
-    :param dir: dir to create.
-    :return:
-    """
-
-    try:
-        os.makedirs(dir)
-    except OSError as exc:  # Python >2.5
-        if exc.errno == errno.EEXIST and os.path.isdir(dir):
-            pass
-        else:
-            print("Error when creating dir for dataset: {}".format(exc))
-            raise
 
 class GenericImageAgeDataset(Dataset):
     """
@@ -74,6 +52,14 @@ class GenericImageAgeDataset(Dataset):
         if not dataset_normalizers:
             dataset_normalizers = []
 
+        self.normalizers = dataset_normalizers
+
+    def update_normalizers(self, dataset_normalizers):
+        """
+        Updates the normalizers for images from this dataset.
+        :param dataset_normalizers: list of normalizers.
+        :return:
+        """
         self.normalizers = dataset_normalizers
 
     def _is_absolute_uri(self, uri):
@@ -377,3 +363,11 @@ class GenericImageAgeDataset(Dataset):
             self.put_image(image, autoencode_uri=False)
 
         lmdb_env.close()
+
+    def export_to_zip(self, filename):
+        """
+        Exports the current dataset into ZIP format.
+        :param filename: filename of the zip to store contents into.
+        """
+
+dataset_proto[GenericImageAgeDataset.__name__] = GenericImageAgeDataset
