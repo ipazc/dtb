@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 import json
 import os
 import random
@@ -12,6 +13,7 @@ import numpy as np
 from main.dataset.dataset import Dataset, mkdir_p, LMDB_BATCH_SIZE, dataset_proto
 from main.resource.image import Image
 from main.tools.age_range import AgeRange
+import shutil
 
 __author__ = 'Iván de Paz Centeno'
 
@@ -98,10 +100,18 @@ class GenericImageAgeDataset(Dataset):
         :return:
         """
         # For generic image age dataset, the key is the relative uri to the file.
-        uri = os.path.join(self.root_folder, key)
+        uri = self._get_key_absolute_uri(key)
         image = Image(image_id=key, uri=uri, metadata=[self.get_key_metadata(key)])
 
         return image
+
+    def _get_key_absolute_uri(self, key):
+        """
+        Retrieves the absolute uri for a key.
+        :param key: key to retrieve uri from.
+        :return: absolute uri of the key.
+        """
+        return os.path.join(self.root_folder, key)
 
     def put_image(self, image, autoencode_uri=True, apply_normalizers=True):
         """
@@ -135,12 +145,15 @@ class GenericImageAgeDataset(Dataset):
 
             image_blob = image.get_blob()
 
+            normalizers_applied = 0
             if apply_normalizers:
                 for normalizer in self.normalizers:
                     image_blob = normalizer.apply(image_blob)
+                    normalizers_applied += 1
 
             cv2.imwrite(uri, image_blob)
-            print("Saved into {}".format(uri))
+            print("Saved into {} ({} normalizers applied)".format(uri, normalizers_applied))
+
         except Exception as ex:
             print("Could not write image \"{}\" into dataset.".format(image.get_uri()))
             del self.metadata_content[key]
@@ -212,7 +225,6 @@ class GenericImageAgeDataset(Dataset):
             self.metadata_content = "{}"
 
         self.metadata_content = self._preprocess_metadata(self.metadata_content)
-        print(self.metadata_content)
         self._update_encoded_uris_cache()
 
     @staticmethod
@@ -393,7 +405,7 @@ class GenericImageAgeDataset(Dataset):
             data = caffe.io.datum_to_array(datum)
 
             # CxHxW to HxWxC in cv2
-            image_blob = np.asarray(np.transpose(data, (1,2,0)), order='C')
+            image_blob = np.asarray(np.transpose(data, (1, 2, 0)), order='C')
 
             image = Image(uri=key, image_id=key, metadata=[AgeRange(label, label)], blob_content=image_blob)
             self.put_image(image, autoencode_uri=False)
@@ -405,6 +417,29 @@ class GenericImageAgeDataset(Dataset):
         Exports the current dataset into ZIP format.
         :param filename: filename of the zip to store contents into.
         """
+        shutil.make_archive(filename, 'zip', self.root_folder)
+
+    def import_from_zip(self, filename):
+        """
+        Imports the specified dataset from ZIP format. It won't delete current dataset's contents nor the config file.
+        :param filename: filename of the zip to store contents into.
+        """
+        self.load_dataset()
+        shutil.unpack_archive(filename, self.root_folder, 'zip')
+        previous_metadata_content = self.metadata_content
+        self.routes = []
+        self.load_dataset()
+        print(previous_metadata_content)
+        print("\n**********\n")
+        print(self.metadata_content)
+
+        if not self.metadata_content:
+            print("Warning: imported ZIP does not seem to have a valid metadata content.")
+
+        for k,v in previous_metadata_content.items():
+            self.metadata_content[k] = v
+        print("\n**********\n")
+        print(self.metadata_content)
 
     def get_metadata_proto(self):
         """
@@ -412,5 +447,22 @@ class GenericImageAgeDataset(Dataset):
         :return:
         """
         return AgeRange
+
+    def clean(self, remove_files=False):
+        """
+        Cleans the current dataset storage.
+        :param remove_files: boolean flag. If set, it will also be reflected in the filesystem.
+        :return:
+        """
+        keys = self.get_keys()
+
+        if remove_files:
+
+            for key in keys:
+                absolute_uri = self._get_key_absolute_uri(key)
+                os.remove(absolute_uri)
+                os.remove(self.metadata_file)
+
+        self.metadata_content = {}
 
 dataset_proto[GenericImageAgeDataset.__name__] = GenericImageAgeDataset

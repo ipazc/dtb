@@ -10,13 +10,14 @@ Usage:
   dtb.py init <dataset_type> [--size=<WxH>] [--equalize-histogram] [--override-existing] [--description=<dataset_description>] [--metadata-file=<metadata_filename>]
   dtb.py list-dataset-types
   dtb.py add <resource-uri>...
+  dtb.py info
   dtb.py size
   dtb.py lmdb export <lmdb_destination> <splits>... [--size=<WxH>] [--equalize-histogram] [--shuffle]
-  dtb.py lmdb import <lmdb_source> <dataset_type> [--clean]
+  dtb.py lmdb import <lmdb_source> [--clean]
   dtb.py lmdb size <lmdb_source>
   dtb.py lmdb check-shuffle-status <lmdb_source>
   dtb.py zip export <zip_destination>
-  dtb.py zip import <zip_source>
+  dtb.py zip import <zip_source> [--override-config]
 
   dtb.py (-h | --help)
   dtb.py --version
@@ -31,6 +32,7 @@ Options:
   --override-existing       Overrides file .options.json in case it exists.
   --equalize-histogram      Equalizes the histogram of the pixels' intensities,
   --clean       Specifies if the previous content should be cleaned. Otherwise it will be merged.
+  --override-config     Overrides the configuration file for this dataset if it exists in the zip file.
 """
 
 import json
@@ -67,13 +69,13 @@ def get_config():
     return options
 
 
-def set_config(options):
+def set_config(options, override=False):
     """
     Writes the config for the current database in a hidden file ".options.json".
     :param options:
     :return: True if could be written, false if it already exists.
     """
-    if os.path.exists(HIDDEN_CONFIG_FILE):
+    if os.path.exists(HIDDEN_CONFIG_FILE) and not override:
         done = False
 
     else:
@@ -92,6 +94,7 @@ class DTB(object):
     def __init__(self, arguments):
         self.arguments = arguments
         self.options = {}
+        self.dataset = None
 
     def parse_arguments(self):
         """
@@ -103,7 +106,8 @@ class DTB(object):
             self.do_lmdb_check_shuffle()
         elif arguments['lmdb'] and arguments['size']:
             self.do_lmdb_get_size()
-
+        #
+        #
 
         if arguments['init']:
             self.do_initialize()
@@ -113,6 +117,9 @@ class DTB(object):
         if arguments['add']:
             self.do_add()
 
+        elif arguments['info']:
+            self.do_info()
+
         elif arguments['size']:
             self.do_get_size()
 
@@ -120,13 +127,13 @@ class DTB(object):
             self.do_lmdb_export()
 
         elif arguments['lmdb'] and arguments['import']:
-            pass#self.do_lmdb_import()
+            self.do_lmdb_import()
 
         elif arguments['zip'] and arguments['export']:
-            pass#self.do_zip_export()
+            self.do_zip_export()
 
         elif arguments['zip'] and arguments['import']:
-            pass#self.do_zip_import()
+            self.do_zip_import()
 
     def do_initialize(self):
         """
@@ -141,8 +148,10 @@ class DTB(object):
         for argument in arguments_to_store:
             self.options[argument.replace("--","")] = self.arguments[argument]
 
+        do_override = self.arguments['--override-existing']
+
         # Let's initialize the folder if it isn't already done
-        if not set_config(self.options):
+        if not set_config(self.options, do_override):
             previous_options = get_config()
             print("Folder is already initialized with {}. Remove the file {} and initialize it again.".format(
                 previous_options, HIDDEN_CONFIG_FILE))
@@ -316,8 +325,76 @@ class DTB(object):
         Prints the dataset types available for use in init.
         :return:
         """
-        [ print(dataset_type) for dataset_type in dataset_proto ]
+        [print(dataset_type) for dataset_type in dataset_proto]
         exit(0)
+
+    def do_lmdb_import(self):
+        """
+        Imports from an LMDB file into the current dataset folder.
+        :return:
+        """
+        self.dataset.load_dataset()
+
+        source = self.arguments['<lmdb_source>']
+
+        if not os.path.exists(source):
+            print("Error: the specified LMDB source folder does not exist.")
+            exit(-1)
+
+        do_clean = self.arguments['--clean']
+
+        if do_clean:
+            self.dataset.clean(remove_files=True)
+
+        self.dataset.import_from_lmdb(source)
+        self.dataset.save_dataset()
+        exit(0)
+
+    def do_zip_export(self):
+        """
+        Exports the current dataset into a zip file
+        :return:
+        """
+        destination = self.arguments['<zip_destination>']
+
+        self.dataset.export_to_zip(destination)
+
+        exit(0)
+
+    def do_zip_import(self):
+        """
+        Imports the zip into current dataset.
+        :return:
+        """
+        source = self.arguments['<zip_source>']
+        override_config = self.arguments['--override-config']
+
+        self.dataset.import_from_zip(source)
+
+        if not override_config:
+            set_config(self.options, True)
+
+        self.dataset.save_dataset()
+
+        exit(0)
+
+    def do_info(self):
+        """
+        Prints information regarding the current dataset.
+        :return:
+        """
+
+        print("=============================")
+        print("= Dataset information        ")
+        print("= ")
+
+        for option, value in self.options.items():
+            print("= {}: {}".format(option, value))
+
+        print("=============================")
+
+        exit(0)
+
 
 if __name__ == '__main__':
     arguments = docopt(__doc__, version='Dataset Builder 0.0.1 Jan 2017')
