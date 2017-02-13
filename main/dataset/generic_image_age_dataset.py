@@ -41,6 +41,8 @@ class GenericImageAgeDataset(Dataset):
         :return:
         """
         # This dataset class is also capable of creating datasets.
+        self.dictionary_label_to_age_range = {}
+
         mkdir_p(root_folder)
 
         # When metadata_file is not an absolute URI, it is related to root_folder.
@@ -50,6 +52,8 @@ class GenericImageAgeDataset(Dataset):
         Dataset.__init__(self, root_folder, metadata_file, description)
 
         self.autoencoded_uris = {}
+
+        self.dictionary_mean_to_label = {}
 
         if not dataset_normalizers:
             dataset_normalizers = []
@@ -294,6 +298,12 @@ class GenericImageAgeDataset(Dataset):
         chunk of the dataset as a test or validation lmdbs.
         :param apply_normalizers: boolean flag to apply normalizers when the image is put into the dataset manually.
         """
+        self.build_range_to_label_dictionary()
+
+        print("SOFTMAX function labelling:\n")
+        for label, age_range in self.dictionary_label_to_age_range.items():
+            print("{}: {}".format(label, age_range.__str__()))
+
         iteration = 0
         txn_index = 0
 
@@ -345,10 +355,13 @@ class GenericImageAgeDataset(Dataset):
             image.load_from_uri()
             age_range = image.get_metadata()[0]
 
-            if ages_as_means:
-                label = age_range.get_mean()
-            else:
-                label = age_range.get_range()[0]
+            #if ages_as_means:
+            #    label = age_range.get_mean()
+            #else:
+            #    label = age_range.get_range()[0]
+            age_mean = age_range.get_mean()
+
+            label = self.dictionary_mean_to_label[age_mean]
 
             image_blob = image.get_blob()
             if apply_normalizers:
@@ -356,7 +369,7 @@ class GenericImageAgeDataset(Dataset):
                     image_blob = normalizer.apply(image_blob)
 
             #HxWxC to CxHxW in caffe
-            image_blob = np.transpose(image_blob, (2,0,1))
+            image_blob = np.transpose(image_blob, (2, 0, 1))
 
             # Datum is the element map in LMDB. We associate image with label here.
             datum = array_to_datum(image_blob, label)
@@ -383,6 +396,10 @@ class GenericImageAgeDataset(Dataset):
          for txn, count in put_txns.items() if count % LMDB_BATCH_SIZE != 0]
 
         [env.close() for env in environments]
+
+        print("SOFTMAX function labelling:\n")
+        for label, age_range in self.dictionary_label_to_age_range.items():
+            print("{}: {}".format(label, age_range.__str__()))
 
     def import_from_lmdb(self, lmdb_foldername):
         """
@@ -429,17 +446,12 @@ class GenericImageAgeDataset(Dataset):
         previous_metadata_content = self.metadata_content
         self.routes = []
         self.load_dataset()
-        print(previous_metadata_content)
-        print("\n**********\n")
-        print(self.metadata_content)
 
         if not self.metadata_content:
             print("Warning: imported ZIP does not seem to have a valid metadata content.")
 
         for k,v in previous_metadata_content.items():
             self.metadata_content[k] = v
-        print("\n**********\n")
-        print(self.metadata_content)
 
     def get_metadata_proto(self):
         """
@@ -464,5 +476,31 @@ class GenericImageAgeDataset(Dataset):
                 os.remove(self.metadata_file)
 
         self.metadata_content = {}
+
+    def build_range_to_label_dictionary(self):
+        """
+        Builds the dictionary for translating the age range into a label.
+        It will order the dictionary by age range mean.
+        """
+        keys = self.get_keys(shuffle=True)
+
+        age_ranges_table = {}
+        for key in keys:
+
+            age_range = self.get_key_metadata(key)
+
+            age_ranges_table[age_range.get_mean()] = age_range
+
+        # Now we order them and remove the duplications:
+        available_means = list(set(age_ranges_table))
+
+        # finally we build the map
+        iteration = 0
+
+        for mean in available_means:
+            self.dictionary_mean_to_label[mean] = iteration
+            self.dictionary_label_to_age_range[iteration] = age_ranges_table[mean]
+            iteration += 1
+
 
 dataset_proto[GenericImageAgeDataset.__name__] = GenericImageAgeDataset
