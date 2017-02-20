@@ -18,6 +18,7 @@ Usage:
   dtb.py lmdb check-shuffle-status <lmdb_source>
   dtb.py zip export <zip_destination>
   dtb.py zip import <zip_source> [--override-config]
+  dtb.py merge <dataset_uri>... [--deduplicate-by-hash] [--blacklist=<uri>]
 
   dtb.py (-h | --help)
   dtb.py --version
@@ -26,6 +27,7 @@ Options:
   -h --help     Show this screen.
   --version     Show version.
   --size=<WxH>  Sets the width and height in the size of the dataset.
+  --blacklist=<uri>   Specifies a blacklist dataset for resources. This means that all resources' hashes within this dataset are used to discard images when merging.
   --description=<dataset_description>   Specifies a dataset description.
   --metadata-file=<metadata_filename>   Specifies the name of the metadata file.
   --shuffle     Shuffles the dataset in the destination.
@@ -40,6 +42,7 @@ import os
 from docopt import docopt
 import inspect
 
+from main.dataset.data_holder.mem_database import MemDatabase
 from main.dataset.dataset import dataset_proto, LMDB_BATCH_SIZE
 from main.normalizer.normalizer import normalizer_proto
 
@@ -116,6 +119,9 @@ class DTB(object):
 
         if arguments['add']:
             self.do_add()
+
+        if arguments['merge']:
+            self.do_merge()
 
         elif arguments['info']:
             self.do_info()
@@ -228,6 +234,59 @@ class DTB(object):
 
         exit(0)
 
+    def do_merge(self):
+        """
+        Merges multiple datasets into the current one. They must be of the same type.
+        :return:
+        """
+        blacklist_mem_hashes = MemDatabase()
+
+        if self.arguments['--blacklist']:
+            blacklist_uri = self.arguments['--blacklist']
+            blacklist_dataset = dataset_proto[self.options['type']](root_folder=blacklist_uri)
+            blacklist_dataset.load_dataset()
+
+            [blacklist_mem_hashes.append(key, blacklist_dataset.get_image(key)) for key in blacklist_dataset.get_keys()]
+
+        self.dataset.load_dataset()
+
+        # Here we wrap each URI inside a dataset object. The type of the dataset is defined inside self.options['type']
+        datasets = [dataset_proto[self.options['type']](root_folder=uri) for uri in self.arguments['<dataset_uri>']]
+
+        for dataset in datasets:
+            print("Loading dataset {}...".format(dataset.get_root_folder()), end="")
+            dataset.load_dataset()
+            print(" Loaded.")
+
+        # Two different ways: to hash by content or not.
+        if self.arguments['--deduplicate-by-hash']:
+            print("Deduplicating by md5hash of content.")
+
+            # Mem_database helps us to hash by content on the fly.
+            mem_database = MemDatabase()
+
+            for dataset in datasets:
+                print("Fetching hash keys from dataset {}...".format(dataset.get_root_folder()), end="")
+                [mem_database.append(key, dataset.get_image(key)) for key in dataset.get_keys()]
+                print(" Done.")
+
+            print("Adding images to final dataset...", end="")
+
+            for hash, [key, image] in mem_database.get_data().items():
+
+                if not blacklist_mem_hashes.contains_image(image):
+                    self.dataset.put_resource(image)
+
+            print(" Finished.")
+
+        else:
+            print("Adding images to final dataset...", end="")
+            for dataset in datasets:
+                [self.dataset.put_resource(dataset.get_image(key)) for key in dataset.get_keys()]
+            print(" Finished.")
+
+        self.dataset.save_dataset()
+
     def do_lmdb_export(self):
         """
         Exports the current dataset into a LMDB format under the specified folder with the specified splits.
@@ -326,6 +385,7 @@ class DTB(object):
         :return:
         """
         [print(dataset_type) for dataset_type in dataset_proto]
+
         exit(0)
 
     def do_lmdb_import(self):
@@ -348,6 +408,7 @@ class DTB(object):
 
         self.dataset.import_from_lmdb(source)
         self.dataset.save_dataset()
+
         exit(0)
 
     def do_zip_export(self):

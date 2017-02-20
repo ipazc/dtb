@@ -147,6 +147,9 @@ class GenericImageAgeDataset(Dataset):
             if not image.is_loaded():
                 image.load_from_uri()
 
+            if not image.is_loaded():
+                raise Exception("Image may not exist or it is not valid.")
+
             image_blob = image.get_blob()
 
             normalizers_applied = 0
@@ -159,9 +162,8 @@ class GenericImageAgeDataset(Dataset):
             print("Saved into {} ({} normalizers applied)".format(uri, normalizers_applied))
 
         except Exception as ex:
-            print("Could not write image \"{}\" into dataset.".format(image.get_uri()))
+            print("Could not write image \"{}\" into dataset.Reason: {}".format(image.get_uri(), ex))
             del self.metadata_content[key]
-            raise
 
     def put_resource(self, resource, autoencode_uri=True, apply_normalizers=True):
         """
@@ -334,7 +336,15 @@ class GenericImageAgeDataset(Dataset):
             put_txns[txn] = 0
 
         for key in keys:
+
             iteration += 1
+            image = self.get_image(key)
+            image.load_from_uri()
+
+            if not image.is_loaded():
+                print("Image not valid. Omitted.")
+                continue
+
 
             for split_id in range(len(splitters)):
 
@@ -351,8 +361,6 @@ class GenericImageAgeDataset(Dataset):
                 env = environments[0]
                 txn_index = 0
 
-            image = self.get_image(key)
-            image.load_from_uri()
             age_range = image.get_metadata()[0]
 
             #if ages_as_means:
@@ -364,6 +372,7 @@ class GenericImageAgeDataset(Dataset):
             label = self.dictionary_mean_to_label[age_mean]
 
             image_blob = image.get_blob()
+
             if apply_normalizers:
                 for normalizer in self.normalizers:
                     image_blob = normalizer.apply(image_blob)

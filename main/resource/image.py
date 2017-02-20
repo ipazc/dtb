@@ -198,3 +198,17 @@ class Image(Resource):
                 encoded_image = encimg.tostring()
 
         return encoded_image
+
+    def unload(self):
+        """
+        Unloads the content of the current image.
+        :return:
+        """
+        self.blob_content = []
+
+    def clone(self):
+        """
+        Clones this instance
+        """
+
+        return Image(self.get_uri(), self.get_id(), self.get_metadata(), self.get_blob())
