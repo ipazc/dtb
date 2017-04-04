@@ -8,6 +8,56 @@
             <set />
           </value>
         </entry>
+        <entry key="$PROJECT_DIR$/../CvMlEval/eval_age_algorithms.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../CvMlEval/little_test.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../CvMlEval/main/model/algorithm/estimation/age/api_rest_age_estimation.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../CvMlEval/main/model/comparator/age_range_comparator.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../CvMlEval/main/model/dataset/lowaged_dataset.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../CvMlEval/main/model/resource/image.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../CvMlEval/main/model/tools/age_range.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../CvMlEval/main/services/image/algorithm_service.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../CvMlEval/main/services/pool/algorithm_pool.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../CvMlModule/main/model/algorithm/detection/face/mtcnn/mtcnn_face_detector.py">
+          <value>
+            <set />
+          </value>
+        </entry>
         <entry key="$PROJECT_DIR$/../CvMlModule/main/model/resource/text.py">
           <value>
             <set />
@@ -138,7 +188,17 @@
             <set />
           </value>
         </entry>
+        <entry key="$PROJECT_DIR$/../dbinfilter/main/debug1.py">
+          <value>
+            <set />
+          </value>
+        </entry>
         <entry key="$PROJECT_DIR$/../dbinfilter/main/entry.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../dbinfilter/main/entry3.py">
           <value>
             <set />
           </value>
@@ -169,6 +229,11 @@
           </value>
         </entry>
         <entry key="$PROJECT_DIR$/../dbinfilter/main/filter/advanced/face_detection_filter.py">
+          <value>
+            <set />
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../dbinfilter/main/filter/advanced/text_example_filter.py">
           <value>
             <set />
           </value>

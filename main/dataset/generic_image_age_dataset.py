@@ -501,7 +501,7 @@ class GenericImageAgeDataset(Dataset):
             age_ranges_table[age_range.get_mean()] = age_range
 
         # Now we order them and remove the duplications:
-        available_means = list(set(age_ranges_table))
+        available_means = sorted(list(set(age_ranges_table)))
 
         # finally we build the map
         iteration = 0
