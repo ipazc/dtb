@@ -10,6 +10,7 @@ Usage:
   dtb.py init <dataset_type> [--size=<WxH>] [--equalize-histogram] [--override-existing] [--description=<dataset_description>] [--metadata-file=<metadata_filename>]
   dtb.py list-dataset-types
   dtb.py add <resource-uri>...
+  dtb.py addfolder <folder-uri>
   dtb.py info
   dtb.py size
   dtb.py lmdb export <lmdb_destination> <splits>... [--size=<WxH>] [--equalize-histogram] [--shuffle]
@@ -43,11 +44,12 @@ from docopt import docopt
 import inspect
 
 from main.dataset.data_holder.mem_database import MemDatabase
-from main.dataset.dataset import dataset_proto, LMDB_BATCH_SIZE
+from main.dataset.dataset import dataset_proto, LMDB_BATCH_SIZE, Dataset
 from main.normalizer.normalizer import normalizer_proto
 
 # Import datasets to register them
 from main.dataset.generic_image_age_dataset import GenericImageAgeDataset           # DO NOT DELETE THIS LINE
+from main.dataset.generic_image_dataset import GenericImageDataset                  # DO NOT DELETE THIS LINE
 
 # Import normalizers to register them
 from main.normalizer.image.histogram_normalizer import HistogramNormalizer          # DO NOT DELETE THIS LINE
@@ -119,6 +121,9 @@ class DTB(object):
 
         if arguments['add']:
             self.do_add()
+
+        if arguments['addfolder']:
+            self.do_add_folder()
 
         if arguments['merge']:
             self.do_merge()
@@ -224,7 +229,46 @@ class DTB(object):
 
         for full_uri in self.arguments['<resource-uri>']:
             uri, label = full_uri.split(":")
-            resources.append(Resource(uri=uri, metadata=[metadata_proto.from_string(label)]))
+
+            try:
+                metadata = metadata_proto.from_string(label)
+            except:
+                metadata = metadata_proto(label)
+
+            resources.append(Resource(uri=uri, metadata=[metadata]))
+
+        for resource in resources:
+            self.dataset.put_resource(resource, autoencode_uri=True, apply_normalizers=True)
+
+        # Now we save the dataset
+        self.dataset.save_dataset()
+
+        exit(0)
+
+    def do_add_folder(self):
+        """
+        Appends to the current dataset the specified folder's images files (*.jpg, *.png).
+        :return:
+        """
+        self.dataset.load_dataset()
+        metadata_proto = self.dataset.get_metadata_proto()
+
+        resources = []
+
+        full_uri = self.arguments['<folder-uri>']
+        uri, label = full_uri.split(":")
+
+        dataset = Dataset(uri, "", "none")
+
+        dataset._load_routes()
+
+        for route in dataset.get_routes():
+            try:
+                metadata = metadata_proto.from_string(label)
+            except:
+                metadata = metadata_proto(label)
+
+            resources.append(Resource(uri=route, metadata=[metadata]))
 
         for resource in resources:
             self.dataset.put_resource(resource, autoencode_uri=True, apply_normalizers=True)

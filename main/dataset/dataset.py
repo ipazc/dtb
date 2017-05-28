@@ -192,8 +192,13 @@ class ExtensionSet(object):
         filters the filenames list to retrieve the ones that matches these extensions.
         :return list of files that matches these extensions.
         """
-        return list(filter(None, [",".join(fnmatch.filter(filenames,'*.{}'.format(extension)))
-                                  for extension in [self.extensions]]))
+
+        filtered_files = []
+
+        for extension in self.extensions:
+            filtered_files += fnmatch.filter(filenames,'*.{}'.format(extension))
+
+        return filtered_files
 
 
 dataset_proto = {}
